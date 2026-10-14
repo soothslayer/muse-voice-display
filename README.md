@@ -75,7 +75,10 @@ npm run build      # production build (tsc + vite)
 ## Verification status
 
 - `tsc -b` and `vite build` pass.
-- Render smoke test in headless Chromium: pending (checked before release).
+- Headless Chromium render test (2026-10-09): zero JS errors; chat and
+  settings screens render correctly at 600×600; fixed content overlapping
+  the floating Page header pill. (Google Fonts fetch fails in this sandbox
+  only — proxy-blocked; the app falls back to system fonts.)
 - On-device checks still needed: voice composer opening from the field,
   `speechSynthesis` voice availability, and WebMCP (not yet implemented —
   see below).

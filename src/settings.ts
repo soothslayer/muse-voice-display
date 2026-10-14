@@ -37,3 +37,28 @@ export function isConfigured(settings: HASettings): boolean {
 export function normalizeUrl(url: string): string {
   return url.trim().replace(/\/+$/, '');
 }
+
+/**
+ * One-time setup bootstrap: if the launch URL carries
+ * `?ha_url=<HA base URL>&token=<long-lived token>`, save it to localStorage
+ * and strip the credentials from the visible URL. This lets the owner paste
+ * the credentials on their phone (into the Meta AI app's Web Apps URL field)
+ * instead of typing a 180-character token on the glasses.
+ */
+export function bootstrapFromUrl(): boolean {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const url = q.get('ha_url');
+    const token = q.get('token');
+    if (!url || !token) return false;
+    saveSettings({ url: normalizeUrl(url), token: token.trim() });
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + window.location.hash,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}

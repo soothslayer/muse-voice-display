@@ -139,3 +139,11 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.mv-readonly-value {
+  font-size: 17px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

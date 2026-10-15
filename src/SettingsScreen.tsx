@@ -9,7 +9,6 @@ import { listConversationAgents, type ConversationAgent } from './ha';
 import {
   DEFAULT_CONVERSATION_AGENT,
   loadSettings,
-  normalizeUrl,
   saveSettings,
 } from './settings';
 
@@ -20,8 +19,7 @@ interface SettingsScreenProps {
 type View = 'form' | 'agents';
 
 export default function SettingsScreen({ onDone }: SettingsScreenProps) {
-  const [url, setUrl] = useState(() => loadSettings().url);
-  const [token, setToken] = useState(() => loadSettings().token);
+  const [initial] = useState(() => loadSettings());
   const [agentId, setAgentId] = useState(() => loadSettings().agentId);
   const [view, setView] = useState<View>('form');
   const [saved, setSaved] = useState(false);
@@ -34,8 +32,8 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
 
   const handleSave = () => {
     saveSettings({
-      url: normalizeUrl(url),
-      token: token.trim(),
+      url: initial.url,
+      token: initial.token,
       agentId: agentId.trim() || DEFAULT_CONVERSATION_AGENT,
     });
     setSaved(true);
@@ -44,8 +42,8 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
   if (view === 'agents') {
     return (
       <AgentPickerView
-        url={url}
-        token={token}
+        url={initial.url}
+        token={initial.token}
         agentId={agentId}
         onSelect={(id) => {
           setAgentId(id);
@@ -62,39 +60,16 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
       <div className="mv-settings">
         <div>
           <div className="mv-field-label">Home Assistant URL</div>
-          <InputTextView
-            text={url}
-            onTextChange={(t) => {
-              setUrl(t);
-              setSaved(false);
-            }}
-            hint="https://home.example.com"
-            showActionButton={false}
-            inputProps={{
-              'aria-label': 'Home Assistant URL',
-              inputMode: 'url',
-              autoCapitalize: 'off',
-              autoCorrect: 'off',
-            }}
-          />
+          <div className="mv-readonly-value">
+            {initial.url || 'Not set — add ?ha_url= to the web app URL.'}
+          </div>
         </div>
 
         <div>
-          <div className="mv-field-label">Long-lived access token</div>
-          <InputTextView
-            text={token}
-            onTextChange={(t) => {
-              setToken(t);
-              setSaved(false);
-            }}
-            hint="Paste token here"
-            showActionButton={false}
-            inputProps={{
-              'aria-label': 'Home Assistant long-lived access token',
-              autoCapitalize: 'off',
-              autoCorrect: 'off',
-            }}
-          />
+          <div className="mv-field-label">Access token</div>
+          <div className="mv-readonly-value">
+            {initial.token ? '✓ Set' : 'Not set — add &token= to the web app URL.'}
+          </div>
         </div>
 
         <div>

@@ -95,7 +95,7 @@ body {
   padding: 84px 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .mv-field-label {

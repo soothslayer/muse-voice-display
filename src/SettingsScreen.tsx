@@ -26,7 +26,7 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
   const [view, setView] = useState<View>('form');
   const [saved, setSaved] = useState(false);
 
-  // Escape / system Back returns to chat, like the Done button.
+  // Escape / system Back returns to chat, like the Back button.
   useBackNavigation(() => {
     if (view === 'agents') setView('form');
     else onDone();
@@ -60,11 +60,6 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
   return (
     <Page headerText="Settings">
       <div className="mv-settings">
-        <div className="mv-hint">
-          Connect to Home Assistant, where the Muse conversation integration
-          runs. Create a long-lived token under your HA profile, then Security.
-        </div>
-
         <div>
           <div className="mv-field-label">Home Assistant URL</div>
           <InputTextView

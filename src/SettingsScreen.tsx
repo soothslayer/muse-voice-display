@@ -121,7 +121,7 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
 
         <div className="mv-settings-actions">
           <Button title="Save" onClick={handleSave} />
-          <Button title="Done" onClick={onDone} />
+          <Button title="Back" onClick={onDone} />
         </div>
       </div>
     </Page>

@@ -5,9 +5,20 @@ export interface HASettings {
   url: string;
   /** Long-lived access token (Profile > Security > Long-lived access tokens). */
   token: string;
+  /** Conversation agent entity id sent as agent_id, e.g. conversation.muse. */
+  agentId: string;
 }
 
+/** Conversation agent targeted when the user hasn't picked one. */
+export const DEFAULT_CONVERSATION_AGENT = 'conversation.muse';
+
 const KEY = 'muse-voice-display.ha-settings';
+
+function coerceAgentId(value: unknown): string {
+  return typeof value === 'string' && value.trim()
+    ? value.trim()
+    : DEFAULT_CONVERSATION_AGENT;
+}
 
 export function loadSettings(): HASettings {
   try {
@@ -17,12 +28,13 @@ export function loadSettings(): HASettings {
       return {
         url: typeof parsed.url === 'string' ? parsed.url : '',
         token: typeof parsed.token === 'string' ? parsed.token : '',
+        agentId: coerceAgentId(parsed.agentId),
       };
     }
   } catch {
     /* corrupted storage: fall through to defaults */
   }
-  return { url: '', token: '' };
+  return { url: '', token: '', agentId: DEFAULT_CONVERSATION_AGENT };
 }
 
 export function saveSettings(settings: HASettings): void {
@@ -51,7 +63,13 @@ export function bootstrapFromUrl(): boolean {
     const url = q.get('ha_url');
     const token = q.get('token');
     if (!url || !token) return false;
-    saveSettings({ url: normalizeUrl(url), token: token.trim() });
+    const prev = loadSettings();
+    saveSettings({
+      url: normalizeUrl(url),
+      token: token.trim(),
+      // Keep a previously chosen agent; default to Muse on first setup.
+      agentId: prev.agentId || DEFAULT_CONVERSATION_AGENT,
+    });
     window.history.replaceState(
       null,
       '',

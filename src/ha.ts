@@ -2,13 +2,21 @@
  *
  * The Muse conversation integration (soothslayer/ha-muse-conversation) plugs
  * into Home Assistant Assist, so POSTing recognized text to
- * /api/conversation/process returns Muse's spoken reply text.
- *
- * Requires the default conversation agent in Home Assistant to be Muse
- * (Settings > Voice assistants > Assist > Conversation agent).
+ * /api/conversation/process returns the reply text. The conversation agent is
+ * picked explicitly via agent_id (default conversation.muse), so HA's default
+ * agent setting doesn't matter.
  */
 
-import { normalizeUrl, type HASettings } from './settings';
+import {
+  DEFAULT_CONVERSATION_AGENT,
+  normalizeUrl,
+  type HASettings,
+} from './settings';
+
+export interface ConversationAgent {
+  id: string;
+  name: string;
+}
 
 interface ConversationApiResponse {
   response?: {
@@ -35,6 +43,7 @@ export async function askMuse(
   if (!base || !token) {
     throw new Error('Home Assistant is not configured yet.');
   }
+  const agentId = settings.agentId?.trim() || DEFAULT_CONVERSATION_AGENT;
 
   let res: Response;
   try {
@@ -47,6 +56,7 @@ export async function askMuse(
       body: JSON.stringify({
         text,
         language: 'en',
+        agent_id: agentId,
         conversation_id: conversationId,
       }),
     });
@@ -67,7 +77,101 @@ export async function askMuse(
   const data = (await res.json()) as ConversationApiResponse;
   const reply = data?.response?.speech?.plain?.speech?.trim();
   if (!reply) {
-    throw new Error('Muse sent back an empty reply.');
+    throw new Error(`The ${agentId} agent sent back an empty reply.`);
   }
   return { reply, conversationId: data.conversation_id };
+}
+
+/**
+ * List the conversation agents registered in Home Assistant.
+ *
+ * The REST API exposes no agent listing, so this uses the websocket API at
+ * /api/websocket with the `conversation/agent/list` command — the same call
+ * the Home Assistant frontend makes for its own agent picker.
+ */
+export async function listConversationAgents(
+  url: string,
+  token: string,
+  timeoutMs = 15_000,
+): Promise<ConversationAgent[]> {
+  const base = normalizeUrl(url);
+  const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
+  return new Promise<ConversationAgent[]>((resolve, reject) => {
+    let settled = false;
+    let socket: WebSocket | null = null;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        socket?.close();
+      } catch {
+        /* already closed */
+      }
+      fn();
+    };
+    const fail = (message: string) => finish(() => reject(new Error(message)));
+    const timer = setTimeout(() => {
+      fail(
+        `Timed out waiting for Home Assistant's conversation agent list. Check the URL and try again.`,
+      );
+    }, timeoutMs);
+    try {
+      socket = new WebSocket(wsUrl);
+    } catch {
+      fail(`Could not open a websocket to Home Assistant.`);
+      return;
+    }
+    const ws = socket;
+    ws.onerror = () => {
+      fail(`Could not reach Home Assistant at ${base}. Check the URL and network.`);
+    };
+    ws.onclose = () => {
+      fail(`The connection to Home Assistant closed before the agent list arrived.`);
+    };
+    ws.onmessage = (event) => {
+      let msg: {
+        type?: string;
+        id?: number;
+        success?: boolean;
+        error?: { message?: string };
+        result?: { agents?: unknown };
+      };
+      try {
+        msg = JSON.parse(String(event.data));
+      } catch {
+        return;
+      }
+      if (msg.type === 'auth_required') {
+        ws.send(JSON.stringify({ type: 'auth', access_token: token.trim() }));
+      } else if (msg.type === 'auth_ok') {
+        ws.send(JSON.stringify({ id: 1, type: 'conversation/agent/list' }));
+      } else if (msg.type === 'auth_invalid') {
+        fail('Home Assistant rejected the token. Check it in Settings.');
+      } else if (msg.type === 'result' && msg.id === 1) {
+        if (!msg.success) {
+          fail(
+            `Home Assistant refused to list conversation agents${msg.error?.message ? `: ${msg.error.message}` : '.'}`,
+          );
+          return;
+        }
+        const raw = msg.result?.agents;
+        if (!Array.isArray(raw)) {
+          fail('Home Assistant returned an unexpected agent list.');
+          return;
+        }
+        const agents: ConversationAgent[] = [];
+        for (const item of raw) {
+          const id = (item as { id?: unknown } | null)?.id;
+          if (typeof id !== 'string' || !id) continue;
+          const name = (item as { name?: unknown } | null)?.name;
+          agents.push({
+            id,
+            name: typeof name === 'string' && name ? name : id,
+          });
+        }
+        finish(() => resolve(agents));
+      }
+    };
+  });
 }

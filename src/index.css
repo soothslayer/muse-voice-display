@@ -147,3 +147,11 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.mv-conn-ok {
+  color: #7dffa8;
+}
+
+.mv-conn-bad {
+  color: #ff9d9d;
+}

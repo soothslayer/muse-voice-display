@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   InputTextView,
   Page,
   useBackNavigation,
 } from '@wearables-ui-toolkit/mrbd';
-import { listConversationAgents, type ConversationAgent } from './ha';
+import {
+  checkConnection,
+  listConversationAgents,
+  type ConnectionStatus,
+  type ConversationAgent,
+} from './ha';
 import {
   DEFAULT_CONVERSATION_AGENT,
   loadSettings,
@@ -23,6 +28,28 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
   const [agentId, setAgentId] = useState(() => loadSettings().agentId);
   const [view, setView] = useState<View>('form');
   const [saved, setSaved] = useState(false);
+  const [conn, setConn] = useState<ConnectionStatus | 'checking' | null>(null);
+
+  const runConnectionCheck = useCallback(() => {
+    if (!initial.url || !initial.token) {
+      setConn(null);
+      return;
+    }
+    setConn('checking');
+    let cancelled = false;
+    checkConnection(initial.url, initial.token).then((status) => {
+      if (!cancelled) setConn(status);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initial.url, initial.token]);
+
+  // Check connectivity once when Settings opens.
+  useEffect(() => {
+    const cancel = runConnectionCheck();
+    return cancel;
+  }, [runConnectionCheck]);
 
   // Escape / system Back returns to chat, like the Back button.
   useBackNavigation(() => {
@@ -67,9 +94,38 @@ export default function SettingsScreen({ onDone }: SettingsScreenProps) {
 
         <div>
           <div className="mv-field-label">Access token</div>
-          <div className="mv-readonly-value">
-            {initial.token ? '✓ Set' : 'Not set — add &token= to the web app URL.'}
+          <div className="mv-agent-row">
+            <div className="mv-readonly-value" aria-live="polite">
+              {initial.token ? (
+                <>
+                  ✓ Set{conn === 'checking' && <span> · Checking…</span>}
+                  {conn && conn !== 'checking' && conn.state === 'ok' && (
+                    <span className="mv-conn-ok"> · Connected</span>
+                  )}
+                  {conn && conn !== 'checking' && conn.state === 'bad-token' && (
+                    <span className="mv-conn-bad"> · Token rejected</span>
+                  )}
+                  {conn && conn !== 'checking' && conn.state === 'unreachable' && (
+                    <span className="mv-conn-bad"> · Not connected</span>
+                  )}
+                </>
+              ) : (
+                'Not set — add &token= to the web app URL.'
+              )}
+            </div>
+            {initial.token && <Button title="Test" onClick={runConnectionCheck} />}
           </div>
+          {conn && conn !== 'checking' && conn.state === 'unreachable' && (
+            <div className="mv-hint" role="alert">
+              {conn.message}
+            </div>
+          )}
+          {conn && conn !== 'checking' && conn.state === 'bad-token' && (
+            <div className="mv-hint" role="alert">
+              Home Assistant rejected the token. Relaunch with a fresh
+              &token= in the web app URL.
+            </div>
+          )}
         </div>
 
         <div>

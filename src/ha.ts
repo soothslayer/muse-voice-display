@@ -83,6 +83,60 @@ export async function askMuse(
 }
 
 /**
+ * Check whether Home Assistant is reachable and the token is accepted.
+ *
+ * GET /api/ is the lightest authenticated endpoint: it returns 200 with
+ * {"message":"API running."} for a valid token, 401/403 for a bad one.
+ * Never throws — the caller gets a plain status to render.
+ */
+export type ConnectionStatus =
+  | { state: 'ok' }
+  | { state: 'bad-token' }
+  | { state: 'unreachable'; message: string };
+
+export async function checkConnection(
+  url: string,
+  token: string,
+  timeoutMs = 10_000,
+): Promise<ConnectionStatus> {
+  const base = normalizeUrl(url);
+  const trimmed = token.trim();
+  if (!base || !trimmed) {
+    return { state: 'unreachable', message: 'Home Assistant is not configured yet.' };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${base}/api/`, {
+      headers: { Authorization: `Bearer ${trimmed}` },
+      signal: controller.signal,
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { state: 'bad-token' };
+    }
+    if (!res.ok) {
+      return {
+        state: 'unreachable',
+        message: `Home Assistant returned HTTP ${res.status}.`,
+      };
+    }
+    return { state: 'ok' };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return {
+        state: 'unreachable',
+        message: `Timed out reaching Home Assistant at ${base}.`,
+      };
+    }
+    return {
+      state: 'unreachable',
+      message: `Could not reach Home Assistant at ${base}. Check the URL and network.`,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+/**
  * List the conversation agents registered in Home Assistant.
  *
  * The REST API exposes no agent listing, so this uses the websocket API at

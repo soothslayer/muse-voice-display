@@ -124,3 +124,18 @@ body {
   gap: 8px;
   margin-top: 8px;
 }
+
+.mv-agent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mv-agent-current {
+  flex: 1 1 auto;
+  font-size: 17px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

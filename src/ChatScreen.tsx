@@ -95,58 +95,67 @@ export default function ChatScreen({ onOpenSettings }: ChatScreenProps) {
 
   return (
     <Page headerText="Muse Voice">
-      <div className="mv-transcript" ref={transcriptRef} aria-live="polite">
-        {turns.map((turn, i) => (
-          <div
-            key={i}
-            className={`mv-turn ${turn.role === 'user' ? 'mv-user' : ''}`}
-          >
-            <div className="mv-role">{turn.role === 'user' ? 'You' : 'Muse'}</div>
-            <div className="mv-text">{turn.text}</div>
-          </div>
-        ))}
-      </div>
-
-      {phase === 'thinking' && (
-        <div className="mv-status">
-          <IndeterminateLoader />
-          <span>Thinking…</span>
+      {/* The toolkit's Page content box is a plain block container, not a
+          flex column, so a bare flex:1 transcript never got constrained:
+          it grew past the viewport and pushed the composer off-screen.
+          This wrapper is the flex column that actually fills the page,
+          so only the transcript scrolls and the composer stays pinned. */}
+      <div className="mv-chat">
+        <div className="mv-transcript" ref={transcriptRef} aria-live="polite">
+          {turns.map((turn, i) => (
+            <div
+              key={i}
+              className={`mv-turn ${turn.role === 'user' ? 'mv-user' : ''}`}
+            >
+              <div className="mv-role">{turn.role === 'user' ? 'You' : 'Muse'}</div>
+              <div className="mv-text">{turn.text}</div>
+            </div>
+          ))}
         </div>
-      )}
-      {phase === 'speaking' && (
-        <div className="mv-status">
-          <span>Speaking…</span>
-        </div>
-      )}
-      {error && (
-        <div className="mv-error" role="alert">
-          {error}
-        </div>
-      )}
 
-      <div className="mv-composer">
-        <InputTextView
-          text={draft}
-          onTextChange={setDraft}
-          onSend={handleSend}
-          hint="Talk to Muse…"
-          actionLabel="Send to Muse"
-          showActionButton
-          showLoader={phase === 'thinking'}
-          loadingLabel="Waiting for Muse"
-          inputProps={{ 'aria-label': 'Message to Muse' }}
-        />
-      </div>
-
-      <ButtonRail>
-        <Button title="Settings" onClick={onOpenSettings} />
-        {phase === 'speaking' && (
-          <Button title="Stop" onClick={handleStop} />
-        )}
         {phase === 'thinking' && (
-          <Button title="Cancel" onClick={handleStop} />
+          <div className="mv-status">
+            <IndeterminateLoader />
+            <span>Thinking…</span>
+          </div>
         )}
-      </ButtonRail>
+        {phase === 'speaking' && (
+          <div className="mv-status">
+            <span>Speaking…</span>
+          </div>
+        )}
+        {error && (
+          <div className="mv-error" role="alert">
+            {error}
+          </div>
+        )}
+
+        <div className="mv-composer">
+          <InputTextView
+            text={draft}
+            onTextChange={setDraft}
+            onSend={handleSend}
+            hint="Talk to Muse…"
+            actionLabel="Send to Muse"
+            showActionButton
+            showLoader={phase === 'thinking'}
+            loadingLabel="Waiting for Muse"
+            inputProps={{ 'aria-label': 'Message to Muse' }}
+          />
+        </div>
+
+        <div className="mv-rail">
+          <ButtonRail>
+            <Button title="Settings" onClick={onOpenSettings} />
+            {phase === 'speaking' && (
+              <Button title="Stop" onClick={handleStop} />
+            )}
+            {phase === 'thinking' && (
+              <Button title="Cancel" onClick={handleStop} />
+            )}
+          </ButtonRail>
+        </div>
+      </div>
     </Page>
   );
 }

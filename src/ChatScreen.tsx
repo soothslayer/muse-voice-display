@@ -33,6 +33,10 @@ export default function ChatScreen({ onOpenSettings }: ChatScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const conversationId = useRef<string | undefined>(undefined);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  // Mirrors `draft` for the batch check below (state alone would be stale
+  // inside the onTextChange callback).
+  const draftRef = useRef('');
   const sendToken = useRef(0);
 
   // Keep the latest turn visible.
@@ -40,6 +44,50 @@ export default function ChatScreen({ onOpenSettings }: ChatScreenProps) {
     const el = transcriptRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [turns, phase]);
+
+  // Focus the message field. The toolkit moves focus geometrically
+  // (swipe down from wherever it starts), which is why opening the app
+  // used to cost swipes before the field was even reachable. Focusing
+  // the real textarea also sets the toolkit's own "text" focus state
+  // via its onFocus handler, so a single Select then opens the system
+  // composer (dictate or type) instead of needing navigation first.
+  // Runs on open, on return from Settings (ChatScreen remounts), and
+  // whenever a turn finishes, so the next dictation is ready at once.
+  const focusField = useCallback(() => {
+    composerRef.current
+      ?.querySelector<HTMLTextAreaElement>('textarea')
+      ?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    if (phase === 'idle') focusField();
+  }, [phase, focusField]);
+
+  // Dictation lands as one batch commit, not keystroke by keystroke:
+  // the system composer returns the whole dictated string in a single
+  // onTextChange call, so the draft grows by more than one character
+  // at once. Direct typing grows by one character per change and is
+  // deliberately left alone, so typing never steals focus mid-word.
+  // On a batch commit while idle, land focus on Send (the button the
+  // toolkit's ArrowRight/swipe-right handler would have moved to).
+  // Sending is then one tap, no swipe right, and swiping left still
+  // returns to the field to edit before sending.
+  // Deliberately NOT auto-sending: dictation errors are common, and
+  // auto-send would take away the chance to correct the text first.
+  const handleDraftChange = useCallback(
+    (text: string) => {
+      const prevLength = draftRef.current.length;
+      draftRef.current = text;
+      setDraft(text);
+      if (phase !== 'idle') return;
+      if (text.trim().length === 0) return;
+      if (text.length - prevLength <= 1) return;
+      composerRef.current
+        ?.querySelector<HTMLElement>('[aria-label="Send to Muse"]')
+        ?.focus({ preventScroll: true });
+    },
+    [phase],
+  );
 
   // Never leave speech running after the screen unmounts.
   useEffect(() => () => stopSpeaking(), []);
@@ -63,6 +111,7 @@ export default function ChatScreen({ onOpenSettings }: ChatScreenProps) {
 
       const token = ++sendToken.current;
       setError(null);
+      draftRef.current = '';
       setDraft('');
       setTurns((prev) => [...prev, { role: 'user', text: trimmed }]);
       setPhase('thinking');
@@ -130,10 +179,10 @@ export default function ChatScreen({ onOpenSettings }: ChatScreenProps) {
           </div>
         )}
 
-        <div className="mv-composer">
+        <div className="mv-composer" ref={composerRef}>
           <InputTextView
             text={draft}
-            onTextChange={setDraft}
+            onTextChange={handleDraftChange}
             onSend={handleSend}
             hint="Talk to Muse…"
             actionLabel="Send to Muse"
